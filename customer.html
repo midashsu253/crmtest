@@ -18,7 +18,11 @@ input,textarea,select{background:var(--input);color:var(--text);}
 <div class="max-w-4xl mx-auto">
   <header class="flex justify-between items-center mb-4">
     <h1 class="text-xl font-semibold">客戶管理頁面</h1>
-    <button id="backBtn" class="px-3 py-2 rounded-md btn bg-[var(--accent)] text-white">🏠 回首頁</button>
+    <div class="flex gap-2">
+      <button id="importBtn" class="px-3 py-2 rounded-md btn bg-green-500 text-white">📥 匯入CSV</button>
+      <button id="exportBtn" class="px-3 py-2 rounded-md btn bg-blue-500 text-white">📤 匯出CSV</button>
+      <button id="backBtn" class="px-3 py-2 rounded-md btn bg-[var(--accent)] text-white">🏠 回首頁</button>
+    </div>
   </header>
 
   <!-- 客戶資料 -->
@@ -44,6 +48,7 @@ input,textarea,select{background:var(--input);color:var(--text);}
     </div>
   </section>
 
+  <input type="file" id="csvInput" accept=".csv" class="hidden">
 </div>
 
 <script type="module">
@@ -67,6 +72,9 @@ const noteEl=document.getElementById('note');
 const editBtn=document.getElementById('editBtn');
 const saveBtn=document.getElementById('saveBtn');
 const backBtn=document.getElementById('backBtn');
+const importBtn=document.getElementById('importBtn');
+const exportBtn=document.getElementById('exportBtn');
+const csvInput=document.getElementById('csvInput');
 
 const ordersBtn=document.getElementById('ordersBtn');
 const visitsBtn=document.getElementById('visitsBtn');
@@ -87,8 +95,6 @@ async function loadCustomer(){
 }
 
 // =====================
-// render form
-// =====================
 function renderForm(){
   codeEl.value=customer.code||'';
   nameEl.value=customer.name||'';
@@ -97,8 +103,6 @@ function renderForm(){
   noteEl.value=customer.note||'';
 }
 
-// =====================
-// 編輯 / 儲存
 // =====================
 function enterEditMode(){ [codeEl,nameEl,phoneEl,addressEl,noteEl].forEach(el=>el.disabled=false); editBtn.classList.add('hidden'); saveBtn.classList.remove('hidden');}
 async function saveCustomer(){
@@ -115,18 +119,55 @@ async function saveCustomer(){
 }
 
 // =====================
-// 返回首頁
+// 匯出 CSV（含 BOM，避免 Excel 中文亂碼）
 // =====================
-backBtn.addEventListener('click',()=>{location.href='index.html';});
+exportBtn.addEventListener('click', async ()=>{
+  const all = await db.getAll('customers');
+  if(all.length===0){alert('沒有客戶資料');return;}
+  const header = ['code','name','phone','address','note'];
+  const rows = all.map(c=>[c.code||'',c.name||'',c.phone||'',c.address||'',c.note||'']);
+  const csv = [header.join(','), ...rows.map(r=>r.map(x=>`"${x.replace(/"/g,'""')}"`).join(','))].join('\n');
+
+  // 加上 BOM 讓 Excel 可正確辨識 UTF-8
+  const BOM = '\uFEFF';
+  const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'customers.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+});
 
 // =====================
-// 三個按鈕導向
+// 匯入 CSV
 // =====================
+importBtn.addEventListener('click',()=>csvInput.click());
+csvInput.addEventListener('change',async e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const text = await file.text();
+  const lines = text.trim().split('\n');
+  const header = lines.shift().split(',').map(h=>h.trim().replace(/"/g,''));
+  let count = 0;
+  for(const line of lines){
+    const cols = line.split(',').map(v=>v.replace(/^"|"$/g,'').replace(/""/g,'"'));
+    const obj = {};
+    header.forEach((h,i)=>obj[h]=cols[i]||'');
+    obj.orders=[]; obj.visits=[]; obj.inventory={};
+    await db.add('customers',obj);
+    count++;
+  }
+  alert(`匯入成功，共新增 ${count} 筆客戶資料`);
+  csvInput.value='';
+});
+
+// =====================
+backBtn.addEventListener('click',()=>{location.href='index.html';});
 ordersBtn.addEventListener('click',()=>{window.location.href=`orders.html?id=${customer.id}`;});
 visitsBtn.addEventListener('click',()=>{window.location.href=`visits.html?id=${customer.id}`;});
 inventoryBtn.addEventListener('click',()=>{window.location.href=`inventory.html?id=${customer.id}`;});
 
-// =====================
 editBtn.addEventListener('click',()=>{enterEditMode();});
 saveBtn.addEventListener('click',saveCustomer);
 
