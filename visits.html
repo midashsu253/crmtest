@@ -106,18 +106,24 @@ addVisitBtn.addEventListener('click',()=>{
 
   const photos=[];
   const previewDiv=formDiv.querySelector('#photoPreview');
-  formDiv.querySelector('#v_photoBtn').addEventListener('click',async()=>{
-    const stream = await navigator.mediaDevices.getUserMedia({video:true});
+
+  formDiv.querySelector('#v_photoBtn').addEventListener('click', async ()=>{
+    // 改用手機後鏡頭
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    
     const video=document.createElement('video');
     video.srcObject=stream;
     video.autoplay=true;
     video.className='w-64 mb-2';
+
     const snapBtn=document.createElement('button');
     snapBtn.textContent='拍攝';
     snapBtn.className='px-2 py-1 rounded-md bg-green-500 text-white mb-2';
+
     const stopBtn=document.createElement('button');
     stopBtn.textContent='完成';
     stopBtn.className='px-2 py-1 rounded-md bg-red-500 text-white mb-2 ml-2';
+
     previewDiv.appendChild(video);
     previewDiv.appendChild(snapBtn);
     previewDiv.appendChild(stopBtn);
@@ -129,7 +135,10 @@ addVisitBtn.addEventListener('click',()=>{
       canvas.getContext('2d').drawImage(video,0,0);
       const dataURL=canvas.toDataURL('image/png');
       photos.push(dataURL);
-      const img=document.createElement('img'); img.src=dataURL; img.className='w-24';
+
+      const img=document.createElement('img');
+      img.src=dataURL;
+      img.className='w-24';
       previewDiv.appendChild(img);
     });
 
@@ -140,7 +149,7 @@ addVisitBtn.addEventListener('click',()=>{
   });
 
   formDiv.querySelector('#v_cancel').addEventListener('click',()=>overlay.remove());
-  formDiv.querySelector('#v_save').addEventListener('click',async()=>{
+  formDiv.querySelector('#v_save').addEventListener('click',async ()=>{
     const visit={
       date: formDiv.querySelector('#v_date').value,
       staff: formDiv.querySelector('#v_staff').value,
