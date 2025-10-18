@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>客戶管理頁面</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script type="module" src="https://unpkg.com/idb?module"></script>
+<style>
+:root{--bg:#f0f2f5;--card:#ffffff;--text:#1f1f1f;--accent:#4e9eff;--input:#f5f5f5;}
+body{background:var(--bg);color:var(--text);}
+.card{background:var(--card);}
+input,textarea,select{background:var(--input);color:var(--text);}
+.btn:hover{transform:translateY(-1px);}
+</style>
+</head>
+<body class="p-4 min-h-screen">
+<div class="max-w-4xl mx-auto">
+  <header class="flex justify-between items-center mb-4">
+    <h1 class="text-xl font-semibold">客戶管理頁面</h1>
+    <button id="backBtn" class="px-3 py-2 rounded-md btn bg-[var(--accent)] text-white">🏠 回首頁</button>
+  </header>
+
+  <!-- 客戶資料 -->
+  <section class="card p-4 rounded-lg mb-4">
+    <div class="flex justify-between items-center mb-2">
+      <h2 class="font-semibold">客戶資料</h2>
+      <button id="editBtn" class="px-2 py-1 rounded-md btn bg-[var(--accent)] text-white">編輯</button>
+      <button id="saveBtn" class="px-2 py-1 rounded-md btn bg-green-500 text-white hidden">儲存</button>
+    </div>
+    <div id="customerForm" class="grid grid-cols-1 md:grid-cols-2 gap-2">
+      <label>客編<input type="text" id="code" class="w-full p-1 rounded-md" disabled></label>
+      <label>姓名<input type="text" id="name" class="w-full p-1 rounded-md" disabled></label>
+      <label>電話<input type="text" id="phone" class="w-full p-1 rounded-md" disabled></label>
+      <label>地址<input type="text" id="address" class="w-full p-1 rounded-md" disabled></label>
+      <label>備註<textarea id="note" class="w-full p-1 rounded-md" rows="2" disabled></textarea></label>
+    </div>
+
+    <!-- 三個按鈕 -->
+    <div class="flex gap-4 mt-4">
+      <button id="ordersBtn" class="px-3 py-2 rounded-md btn bg-[var(--accent)] text-white flex-1">訂單</button>
+      <button id="visitsBtn" class="px-3 py-2 rounded-md btn bg-[var(--accent)] text-white flex-1">拜訪</button>
+      <button id="inventoryBtn" class="px-3 py-2 rounded-md btn bg-[var(--accent)] text-white flex-1">庫存</button>
+    </div>
+  </section>
+
+</div>
+
+<script type="module">
+import { openDB } from 'https://unpkg.com/idb?module';
+const db = await openDB('glucoseCRM',1,{
+  upgrade(db){
+    if(!db.objectStoreNames.contains('customers')){
+      db.createObjectStore('customers',{keyPath:'id',autoIncrement:true});
+    }
+  }
+});
+
+const params=new URLSearchParams(location.search);
+const custId=params.get('id')?Number(params.get('id')):null;
+
+const codeEl=document.getElementById('code');
+const nameEl=document.getElementById('name');
+const phoneEl=document.getElementById('phone');
+const addressEl=document.getElementById('address');
+const noteEl=document.getElementById('note');
+const editBtn=document.getElementById('editBtn');
+const saveBtn=document.getElementById('saveBtn');
+const backBtn=document.getElementById('backBtn');
+
+const ordersBtn=document.getElementById('ordersBtn');
+const visitsBtn=document.getElementById('visitsBtn');
+const inventoryBtn=document.getElementById('inventoryBtn');
+
+let customer={ code:'', name:'', phone:'', address:'', note:'', orders:[], visits:[], inventory:{} };
+
+// =====================
+// 載入客戶資料
+// =====================
+async function loadCustomer(){
+  if(custId){
+    const c=await db.get('customers',custId);
+    if(!c){alert('找不到客戶'); location.href='index.html'; return;}
+    customer = {...customer,...c};
+  }
+  renderForm();
+}
+
+// =====================
+// render form
+// =====================
+function renderForm(){
+  codeEl.value=customer.code||'';
+  nameEl.value=customer.name||'';
+  phoneEl.value=customer.phone||'';
+  addressEl.value=customer.address||'';
+  noteEl.value=customer.note||'';
+}
+
+// =====================
+// 編輯 / 儲存
+// =====================
+function enterEditMode(){ [codeEl,nameEl,phoneEl,addressEl,noteEl].forEach(el=>el.disabled=false); editBtn.classList.add('hidden'); saveBtn.classList.remove('hidden');}
+async function saveCustomer(){
+  customer.code=codeEl.value.trim();
+  customer.name=nameEl.value.trim();
+  customer.phone=phoneEl.value.trim();
+  customer.address=addressEl.value.trim();
+  customer.note=noteEl.value.trim();
+  if(custId){await db.put('customers',customer);}
+  else{ const id=await db.add('customers',customer); customer.id=id;}
+  [codeEl,nameEl,phoneEl,addressEl,noteEl].forEach(el=>el.disabled=true);
+  editBtn.classList.remove('hidden'); saveBtn.classList.add('hidden');
+  alert('儲存成功');
+}
+
+// =====================
+// 返回首頁
+// =====================
+backBtn.addEventListener('click',()=>{location.href='index.html';});
+
+// =====================
+// 三個按鈕導向
+// =====================
+ordersBtn.addEventListener('click',()=>{window.location.href=`orders.html?id=${customer.id}`;});
+visitsBtn.addEventListener('click',()=>{window.location.href=`visits.html?id=${customer.id}`;});
+inventoryBtn.addEventListener('click',()=>{window.location.href=`inventory.html?id=${customer.id}`;});
+
+// =====================
+editBtn.addEventListener('click',()=>{enterEditMode();});
+saveBtn.addEventListener('click',saveCustomer);
+
+loadCustomer();
+</script>
+</body>
+</html>

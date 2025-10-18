@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>訂單管理</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script type="module" src="https://unpkg.com/idb?module"></script>
+</head>
+<body class="p-4 min-h-screen bg-gray-100">
+<div class="max-w-5xl mx-auto">
+  <header class="flex justify-between items-center mb-4">
+    <h1 class="text-xl font-semibold">訂單管理</h1>
+    <button id="backBtn" class="px-3 py-2 rounded-md bg-blue-500 text-white">⬅ 返回</button>
+  </header>
+
+  <section class="bg-white p-4 rounded-lg">
+    <button id="addOrderBtn" class="px-3 py-2 rounded-md bg-blue-500 text-white mb-2">＋ 新增訂單</button>
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="bg-gray-100">
+          <th class="p-1 border">日期</th>
+          <th class="p-1 border">品項</th>
+          <th class="p-1 border">數量</th>
+          <th class="p-1 border">單價</th>
+          <th class="p-1 border">總金額</th>
+          <th class="p-1 border">備註</th>
+        </tr>
+      </thead>
+      <tbody id="orderTable"></tbody>
+    </table>
+  </section>
+</div>
+
+<script type="module">
+import { openDB } from 'https://unpkg.com/idb?module';
+
+async function init(){
+  const db = await openDB('glucoseCRM',1,{
+    upgrade(db){
+      if(!db.objectStoreNames.contains('customers'))
+        db.createObjectStore('customers',{keyPath:'id',autoIncrement:true});
+    }
+  });
+
+  const params = new URLSearchParams(location.search);
+  const custId = params.has('id') ? Number(params.get('id')) : null;
+  if(!custId){ alert('缺少客戶ID'); location.href='index.html'; return; }
+
+  const backBtn = document.getElementById('backBtn');
+  const addOrderBtn = document.getElementById('addOrderBtn');
+  const orderTable = document.getElementById('orderTable');
+
+  let customer = await db.get('customers', custId);
+  if(!customer){ alert('找不到客戶'); location.href='index.html'; return; }
+  if(!Array.isArray(customer.orders)) customer.orders=[];
+  if(!Array.isArray(customer.inventory)) customer.inventory=[];
+
+  function renderOrders(){
+    orderTable.innerHTML='';
+    customer.orders.forEach(o=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`
+        <td class="p-1 border">${o.date}</td>
+        <td class="p-1 border">${o.item}</td>
+        <td class="p-1 border">${o.qty}</td>
+        <td class="p-1 border">${o.price}</td>
+        <td class="p-1 border">${o.qty*o.price}</td>
+        <td class="p-1 border">${o.note||''}</td>
+      `;
+      orderTable.appendChild(tr);
+    });
+  }
+
+  renderOrders();
+
+  addOrderBtn.addEventListener('click', ()=>{
+    const overlay=document.createElement('div');
+    overlay.className='fixed inset-0 bg-black/50 flex justify-center items-start z-50 overflow-auto py-10';
+    const formDiv=document.createElement('div');
+    formDiv.className='bg-white p-4 rounded-lg w-11/12 max-w-2xl';
+    const today=new Date().toISOString().slice(0,10);
+    formDiv.innerHTML=`
+      <h3 class="text-lg font-semibold mb-2">新增訂單</h3>
+      <label>日期<input type="date" id="o_date" class="w-full p-1 rounded-md mb-2" value="${today}"></label>
+      <label>品項<select id="o_item" class="w-full p-1 rounded-md mb-2">
+        <option value="血糖機">血糖機</option>
+        <option value="試紙">試紙</option>
+        <option value="針頭">針頭</option>
+      </select></label>
+      <label>數量<input type="number" id="o_qty" class="w-full p-1 rounded-md mb-2" value="1"></label>
+      <label>單價<input type="number" id="o_price" class="w-full p-1 rounded-md mb-2" value="0"></label>
+      <label>備註<textarea id="o_note" class="w-full p-1 rounded-md mb-2"></textarea></label>
+      <div class="flex justify-end gap-2 mt-2">
+        <button id="o_cancel" class="px-3 py-1 rounded-md bg-red-500 text-white">取消</button>
+        <button id="o_save" class="px-3 py-1 rounded-md bg-blue-500 text-white">儲存</button>
+      </div>
+    `;
+    overlay.appendChild(formDiv);
+    document.body.appendChild(overlay);
+
+    formDiv.querySelector('#o_cancel').addEventListener('click',()=>overlay.remove());
+
+    formDiv.querySelector('#o_save').addEventListener('click', async()=>{
+      const order={
+        date: formDiv.querySelector('#o_date').value||today,
+        item: formDiv.querySelector('#o_item').value,
+        qty: Number(formDiv.querySelector('#o_qty').value)||0,
+        price: Number(formDiv.querySelector('#o_price').value)||0,
+        note: formDiv.querySelector('#o_note').value||''
+      };
+      customer.orders.push(order);
+
+      // 同步庫存
+      const idx=customer.inventory.findIndex(i=>i.item===order.item);
+      if(idx>=0){
+        customer.inventory[idx].lastDate=order.date;
+        customer.inventory[idx].lastQtyFromOrder=order.qty;
+      } else {
+        customer.inventory.push({item:order.item,lastQty:0,currQty:0,lastDate:order.date,lastQtyFromOrder:order.qty});
+      }
+
+      await db.put('customers',customer);
+      renderOrders();
+      overlay.remove();
+      alert('新增訂單成功');
+    });
+  });
+
+  backBtn.addEventListener('click',()=>location.href=`customer.html?id=${custId}`);
+}
+
+init().catch(e=>{console.error(e); alert('頁面初始化失敗');});
+</script>
+</body>
+</html>
